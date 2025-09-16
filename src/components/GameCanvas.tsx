@@ -936,6 +936,57 @@ const GameCanvas: React.FC<GameCanvasPropsInternal> = ({ interiorTexture, interi
         } catch (e) {}
     }, [roadCrackScale, roadCrackAlpha, roadCrackTexture]);
 
+    const drawRoundedPolygon = (g: PIXI.Graphics, polygon: Point[], radius: number) => {
+        if (polygon.length < 3 || radius <= 0) {
+            const isoPoints = polygon.map(p => worldToIso(p));
+            g.drawPolygon(isoPoints);
+            return;
+        }
+
+        const worldVertices = polygon;
+        const n = worldVertices.length;
+
+        const tangents = worldVertices.map((p_curr, i) => {
+            const p_prev = worldVertices[(i + n - 1) % n];
+            const p_next = worldVertices[(i + 1) % n];
+
+            const v1_x = p_prev.x - p_curr.x;
+            const v1_y = p_prev.y - p_curr.y;
+            const len1 = Math.hypot(v1_x, v1_y);
+
+            const v2_x = p_next.x - p_curr.x;
+            const v2_y = p_next.y - p_curr.y;
+            const len2 = Math.hypot(v2_x, v2_y);
+
+            const actualRadius = Math.min(radius, len1 / 2, len2 / 2);
+
+            const t1 = {
+                x: p_curr.x + (v1_x / len1) * actualRadius,
+                y: p_curr.y + (v1_y / len1) * actualRadius
+            };
+            const t2 = {
+                x: p_curr.x + (v2_x / len2) * actualRadius,
+                y: p_curr.y + (v2_y / len2) * actualRadius
+            };
+            return { t1, t2 };
+        });
+
+        const first_t1_iso = worldToIso(tangents[0].t1);
+        g.moveTo(first_t1_iso.x, first_t1_iso.y);
+
+        for (let i = 0; i < n; i++) {
+            const p_curr_iso = worldToIso(worldVertices[i]);
+            const { t2: current_t2 } = tangents[i];
+            const next_t1 = tangents[(i + 1) % n].t1;
+
+            const t2_iso = worldToIso(current_t2);
+            const next_t1_iso = worldToIso(next_t1);
+
+            g.quadraticCurveTo(p_curr_iso.x, p_curr_iso.y, t2_iso.x, t2_iso.y);
+            g.lineTo(next_t1_iso.x, next_t1_iso.y);
+        }
+    };
+
     const onMapChange = (rebuildBuildings: boolean = true) => {
     if (!dynamicDrawables.current || !debugMapData.current || !debugSegments.current || !roadOutlines.current || !intersectionPatches.current) return;
 
@@ -2317,8 +2368,8 @@ const GameCanvas: React.FC<GameCanvasPropsInternal> = ({ interiorTexture, interi
             }
 
             insideBlocks.forEach((path: any) => {
-                const points = path.map((p: any) => worldToIso({ x: p.X / CLIP_SCALE, y: p.Y / CLIP_SCALE }));
-                if (points.length > 2) {
+                const worldPoints = path.map((p: any) => ({ x: p.X / CLIP_SCALE, y: p.Y / CLIP_SCALE }));
+                if (worldPoints.length > 2) {
                     const useTex = !!(config as any).render.blockInteriorUseTexture && interiorTexture;
                     if (useTex) {
                         try {
@@ -2351,7 +2402,8 @@ const GameCanvas: React.FC<GameCanvasPropsInternal> = ({ interiorTexture, interi
                             gInner.beginFill(0x4CAF50); // fallback verde
                         }
                     }
-                    gInner.drawPolygon(points);
+                    const radius = (config as any).render.blockCornerRadiusM || 0;
+                    drawRoundedPolygon(gInner, worldPoints, radius);
                     gInner.endFill();
                     // Desenhar bandas perimetrais (faixas de 10 cm) se habilitado
                     if (rCfg.blockEdgeBandsEnabled) {
