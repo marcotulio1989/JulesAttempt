@@ -232,7 +232,7 @@ export const config = {
     // Suavização de ângulos agudos em interseções
     smoothSharpAngles: true,
     // Usar suavização direta com arcs (arcTo) ao invés de patches de interseção separados
-    useArcToSmoothing: false,
+    useArcToSmoothing: true,
     // Ângulo máximo (graus) considerado "agudo" que precisa de suavização
     sharpAngleThresholdDeg: 90,
     // Raio da suavização como fator da largura média das vias
